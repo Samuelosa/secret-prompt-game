@@ -4,214 +4,131 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Secret Prompt Game</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      padding: 10px;
-      margin: 0;
-      background: #fdf6e3;
-      color: #333;
-    }
-    h1 {
-      text-align: center;
-    }
-    .center {
-      text-align: center;
-    }
-    .hidden {
-      display: none;
-    }
-    button {
-      font-size: 1rem;
-      padding: 10px 20px;
-      margin: 5px;
-    }
-    input {
-      padding: 8px;
-      font-size: 1rem;
-      margin: 5px;
-    }
-    #status {
-      font-weight: bold;
-      margin-bottom: 10px;
-    }
-    .mobile-friendly {
-      max-width: 600px;
-      margin: auto;
-    }
-  </style>
-  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <div class="mobile-friendly">
-    <h1>Secret Prompt Game</h1>
-    <div class="center">
-      <div id="game-setup">
-        <button onclick="createGame()">Create Game</button>
-        <button onclick="showJoinForm()">Join Game</button>
-        <div id="join-form" class="hidden">
-          <input type="text" id="gameCodeInput" placeholder="Enter Game Code" />
-          <button onclick="joinGame()">Join</button>
-        </div>
+<body class="bg-gray-100 text-gray-900">
+  <div class="min-h-screen flex items-center justify-center">
+    <div id="lobby-container" class="text-center space-y-4">
+      <h1 class="text-2xl font-bold">Secret Prompt Game</h1>
+      <input id="gameIdInput" class="border rounded px-4 py-2" placeholder="Enter Game ID" />
+      <div class="space-x-4">
+        <button onclick="selectRole('sunshine')" class="bg-blue-500 text-white px-4 py-2 rounded">Sunshine</button>
+        <button onclick="selectRole('bigman')" class="bg-green-500 text-white px-4 py-2 rounded">BigMan</button>
       </div>
+      <p id="status" class="text-gray-600"></p>
+    </div>
 
-      <div id="player-select" class="hidden">
-        <p>Select your name:</p>
-        <button onclick="selectPlayer('Sunshine')">Sunshine</button>
-        <button onclick="selectPlayer('BigMan')">BigMan</button>
-      </div>
-
-      <div id="status" class="hidden"></div>
-
-      <div id="game-area" class="hidden">
-        <div id="question-tracker"></div>
-        <div id="question-screen" class="hidden">
-          <h2 id="question-role"></h2>
-          <input type="text" id="question-input" placeholder="Enter your question" />
-          <button onclick="submitQuestion()">Submit Question</button>
-        </div>
-
-        <div id="guess-screen" class="hidden">
-          <h2 id="guess-role"></h2>
-          <input type="text" id="guess-input" placeholder="Enter your guess" />
-          <button onclick="submitGuess()">Submit Guess</button>
-        </div>
-
-        <div id="result-screen" class="hidden">
-          <p id="round-result"></p>
-          <button onclick="nextRound()">Next</button>
-        </div>
-      </div>
+    <div id="game-container" class="hidden w-full max-w-md mx-auto p-4 bg-white rounded shadow">
+      <p id="progress" class="text-sm text-gray-500 mb-2"></p>
+      <div id="questionBox" class="text-lg font-semibold mb-4"></div>
+      <input id="inputBox" class="border rounded w-full px-4 py-2 mb-4" placeholder="Type here..." />
+      <button onclick="submitInput()" class="bg-purple-600 text-white w-full py-2 rounded">Submit</button>
     </div>
   </div>
 
   <script>
-    const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-      databaseURL: "https://YOUR_PROJECT_ID.firebaseio.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT_ID.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID"
-    };
-    firebase.initializeApp(firebaseConfig);
+    // Prevent duplicate firebaseConfig and app initialization
+    if (typeof firebase === "undefined" || firebase.apps.length === 0) {
+      const firebaseConfig = {
+        apiKey: "AIzaSyDemoKey",
+        authDomain: "your-app.firebaseapp.com",
+        projectId: "your-app",
+        storageBucket: "your-app.appspot.com",
+        messagingSenderId: "000000000000",
+        appId: "1:000000000000:web:example"
+      };
+      firebase.initializeApp(firebaseConfig);
+    }
+
     const db = firebase.database();
 
-    let gameCode = null;
-    let playerName = null;
-    let currentRound = 1;
+    let role = null;
+    let gameId = null;
+    window.currentRound = 1; // Prevent redeclaration
     const totalRounds = 5;
 
-    function generateGameCode() {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let code = '';
-      for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    function selectRole(selectedRole) {
+      role = selectedRole;
+      gameId = document.getElementById("gameIdInput").value.trim();
+      if (!gameId) {
+        alert("Please enter a Game ID.");
+        return;
       }
-      return code;
+      const playerRef = db.ref(`games/${gameId}/${role}`);
+      playerRef.set({ online: true });
+      playerRef.onDisconnect().remove();
+
+      checkBothPlayersPresent();
     }
 
-    function createGame() {
-      gameCode = generateGameCode();
-      db.ref('games/' + gameCode).set({ round: 1, status: 'waiting', players: {} });
-      alert('Game created. Code: ' + gameCode);
-      document.getElementById('game-setup').classList.add('hidden');
-      document.getElementById('player-select').classList.remove('hidden');
-    }
-
-    function showJoinForm() {
-      document.getElementById('join-form').classList.remove('hidden');
-    }
-
-    function joinGame() {
-      const inputCode = document.getElementById('gameCodeInput').value.trim().toUpperCase();
-      if (!inputCode) return alert('Enter a game code');
-      gameCode = inputCode;
-      db.ref('games/' + gameCode).get().then(snapshot => {
-        if (snapshot.exists()) {
-          document.getElementById('game-setup').classList.add('hidden');
-          document.getElementById('player-select').classList.remove('hidden');
+    function checkBothPlayersPresent() {
+      const gameRef = db.ref(`games/${gameId}`);
+      gameRef.on("value", snapshot => {
+        const data = snapshot.val();
+        const status = document.getElementById("status");
+        if (data?.sunshine?.online && data?.bigman?.online) {
+          status.textContent = "Both players are online. Starting game...";
+          setTimeout(() => {
+            document.getElementById("lobby-container").classList.add("hidden");
+            document.getElementById("game-container").classList.remove("hidden");
+            startGame();
+          }, 1000);
         } else {
-          alert('Game code not found.');
-        }
-      });
-    }
-
-    function selectPlayer(name) {
-      playerName = name;
-      const playerPath = 'games/' + gameCode + '/players/' + name;
-      db.ref(playerPath).set({ online: true });
-      document.getElementById('player-select').classList.add('hidden');
-      document.getElementById('status').classList.remove('hidden');
-      document.getElementById('status').textContent = `Waiting for other player...`;
-      watchGameState();
-    }
-
-    function watchGameState() {
-      const playersRef = db.ref('games/' + gameCode + '/players');
-      playersRef.on('value', snapshot => {
-        const players = snapshot.val();
-        if (players?.BigMan?.online && players?.Sunshine?.online) {
-          document.getElementById('status').textContent = 'Both players online. Starting game...';
-          setTimeout(startGame, 2000);
+          status.textContent = "Waiting for the other player to join...";
         }
       });
     }
 
     function startGame() {
-      document.getElementById('status').classList.add('hidden');
-      document.getElementById('game-area').classList.remove('hidden');
-      if (playerName === 'Sunshine') {
-        showQuestionScreen();
+      const questionBox = document.getElementById("questionBox");
+      if (role === "sunshine") {
+        questionBox.textContent = `Round ${window.currentRound}: Enter a secret answer.`;
       } else {
-        document.getElementById('guess-role').textContent = 'Waiting for Sunshine to set the question...';
+        questionBox.textContent = `Round ${window.currentRound}: Waiting for Sunshine's answer...`;
+        db.ref(`games/${gameId}/round${window.currentRound}/answer`).on("value", snap => {
+          if (snap.exists()) {
+            questionBox.textContent = `Round ${window.currentRound}: Make your guess!`;
+          }
+        });
       }
+      updateProgress();
     }
 
-    function showQuestionScreen() {
-      document.getElementById('question-screen').classList.remove('hidden');
-      document.getElementById('question-role').textContent = `Round ${currentRound} – Sunshine asks a question:`;
-    }
+    function submitInput() {
+      const input = document.getElementById("inputBox").value.trim();
+      if (!input) return;
+      const roundRef = db.ref(`games/${gameId}/round${window.currentRound}`);
 
-    function submitQuestion() {
-      const question = document.getElementById('question-input').value;
-      if (!question) return;
-      db.ref('games/' + gameCode + '/round' + currentRound).set({ question });
-      document.getElementById('question-screen').classList.add('hidden');
-    }
-
-    db.ref('games/' + gameCode).on('value', snapshot => {
-      const data = snapshot.val();
-      if (data && data['round' + currentRound]?.question && playerName === 'BigMan') {
-        document.getElementById('guess-screen').classList.remove('hidden');
-        document.getElementById('guess-role').textContent = `Round ${currentRound} – BigMan, guess the answer:`;
-      }
-    });
-
-    function submitGuess() {
-      const guess = document.getElementById('guess-input').value;
-      if (!guess) return;
-      db.ref('games/' + gameCode + '/round' + currentRound + '/guess').set(guess);
-      document.getElementById('guess-screen').classList.add('hidden');
-      document.getElementById('result-screen').classList.remove('hidden');
-      document.getElementById('round-result').textContent = `BigMan guessed: ${guess}`;
-    }
-
-    function nextRound() {
-      currentRound++;
-      if (currentRound > totalRounds) {
-        alert('Game Over!');
-        location.reload();
-        return;
-      }
-      document.getElementById('result-screen').classList.add('hidden');
-      if (playerName === 'Sunshine') {
-        showQuestionScreen();
+      if (role === "sunshine") {
+        roundRef.update({ answer: input });
+        document.getElementById("questionBox").textContent = `Waiting for BigMan's guess...`;
       } else {
-        document.getElementById('guess-role').textContent = `Waiting for Sunshine to set the question...`;
+        roundRef.update({ guess: input });
+        roundRef.once("value").then(snap => {
+          const answer = snap.val().answer;
+          const result = input.toLowerCase() === answer.toLowerCase() ? "Correct!" : `Wrong. Answer was: ${answer}`;
+          alert(result);
+          window.currentRound++;
+          if (window.currentRound > totalRounds) {
+            endGame();
+          } else {
+            document.getElementById("inputBox").value = "";
+            startGame();
+          }
+        });
       }
+    }
+
+    function updateProgress() {
+      document.getElementById("progress").textContent = `Progress: Round ${window.currentRound} of ${totalRounds}`;
+    }
+
+    function endGame() {
+      alert("Game over! Thanks for playing.");
+      db.ref(`games/${gameId}`).remove();
+      location.reload();
     }
   </script>
 </body>
