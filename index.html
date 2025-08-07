@@ -1,128 +1,194 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Word Scramble Game</title>
+  <title>Habibi Quiz Battle (Simulated)</title>
   <style>
     body {
-      font-family: sans-serif;
-      background: #f0f4f8;
+      font-family: 'Comic Sans MS', cursive, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       padding: 20px;
-      text-align: center;
+      background: linear-gradient(to right, #fdfbfb, #ebedee);
+      color: #333;
     }
-    #game, #lobby {
-      display: none;
+    .hidden { display: none; }
+    #gameContainer {
+      max-width: 600px;
+      width: 100%;
+      background: #fff0f5;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.2);
     }
     input, button {
-      padding: 10px;
-      margin: 10px;
-      font-size: 16px;
+      padding: 12px;
+      margin: 8px 0;
+      width: 100%;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #ccc;
     }
-    .scrambled-word {
-      font-size: 24px;
+    button {
+      background-color: #ff69b4;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #ff85c1;
+    }
+    #questionDisplay {
+      font-size: 1.4rem;
       font-weight: bold;
-      margin: 20px;
+      margin: 20px 0;
+      color: #b30059;
     }
-    .hidden {
-      display: none;
+    #results, #progress, #scoreboard, #finalResults {
+      margin-top: 15px;
     }
-    .solved {
-      color: green;
+    #scoreboard ul {
+      padding-left: 20px;
+    }
+    #finalResults {
+      background-color: #ffe0f0;
+      padding: 15px;
+      border-radius: 10px;
     }
   </style>
 </head>
 <body>
-  <h1>Word Scramble Game</h1>
-  <div id="startScreen">
-    <button onclick="createGame()">Create Game</button>
-    <button onclick="showJoin()">Join Game</button>
-  </div>
-
-  <div id="joinScreen" class="hidden">
-    <input type="text" id="joinGameId" placeholder="Enter 4-digit Game ID"/>
-    <button onclick="joinGame()">Join</button>
-  </div>
-
-  <div id="lobby">
-    <h2>Lobby - Game ID: <span id="gameIdDisplay"></span></h2>
-    <p>Select your name:</p>
-    <button onclick="selectPlayer('BigMan')">BigMan</button>
-    <button onclick="selectPlayer('Sunshine')">Sunshine</button>
-  </div>
-
-  <div id="game">
-    <h2>Player: <span id="playerName"></span></h2>
-    <h3 class="scrambled-word" id="scrambledWord"></h3>
-    <input type="text" id="guessInput" placeholder="Your guess"/>
-    <button onclick="submitGuess()">Submit</button>
-    <p id="status"></p>
-    <p>Score: <span id="score">0</span></p>
-    <p>Words Solved: <span id="progress">0</span>/10</p>
+  <div id="gameContainer">
+    <h2 style="color: #ff1493;">Habibi Quiz Battle (Manual Simulation)</h2>
+    <div id="questionDisplay"></div>
+    <input type="text" id="player1Answer" placeholder="Sunshine's Answer" />
+    <input type="text" id="player2Answer" placeholder="Bigman's Answer" />
+    <button id="submitBtn">Submit Both Answers</button>
+    <div id="results"></div>
+    <div id="progress"></div>
+    <div id="scoreboard"></div>
+    <div id="finalResults" class="hidden"></div>
+    <button id="restartBtn" class="hidden">Play Another Round</button>
   </div>
 
   <script>
-    let words = ["banana", "apple", "orange", "grapes", "mango", "papaya", "peach", "cherry", "melon", "kiwi"];
-    let scrambledWords = [...words].map(w => w.split('').sort(() => Math.random() - 0.5).join(''));
-    let currentIndex = 0;
-    let score = 0;
-    let gameId = '';
-    let playerName = '';
+    let questions = [
+      "What’s my favorite movie?",
+      "Where was our first trip together?",
+      "What’s my dream vacation destination?",
+      "What’s my favorite food?",
+      "What’s my biggest pet peeve?",
+      "What’s my favorite song right now?",
+      "What’s our favorite date night activity?",
+      "What’s something I always forget?",
+      "What’s my guilty pleasure show?",
+      "What’s my hidden talent?",
+      "What's my go-to snack?",
+      "What color do I wear the most?",
+      "Who said 'I love you' first?",
+      "What’s my favorite holiday?",
+      "What’s one thing I can’t live without?"
+    ];
 
-    function createGame() {
-      gameId = Math.floor(1000 + Math.random() * 9000).toString();
-      document.getElementById("startScreen").style.display = "none";
-      document.getElementById("lobby").style.display = "block";
-      document.getElementById("gameIdDisplay").innerText = gameId;
-    }
+    let currentQuestionIndex = 0;
+    let players = {
+      "Sunshine": 0,
+      "Bigman": 0
+    };
 
-    function showJoin() {
-      document.getElementById("startScreen").style.display = "none";
-      document.getElementById("joinScreen").classList.remove("hidden");
-    }
+    let answers = {};
 
-    function joinGame() {
-      gameId = document.getElementById("joinGameId").value;
-      if (gameId.length === 4) {
-        document.getElementById("joinScreen").style.display = "none";
-        document.getElementById("lobby").style.display = "block";
-        document.getElementById("gameIdDisplay").innerText = gameId;
-      }
-    }
-
-    function selectPlayer(name) {
-      playerName = name;
-      document.getElementById("lobby").style.display = "none";
-      document.getElementById("game").style.display = "block";
-      document.getElementById("playerName").innerText = playerName;
-      showWord();
-    }
-
-    function showWord() {
-      if (currentIndex < scrambledWords.length) {
-        document.getElementById("scrambledWord").innerText = scrambledWords[currentIndex];
-        document.getElementById("guessInput").value = '';
-      } else {
-        document.getElementById("scrambledWord").innerText = "Game Over!";
-        document.getElementById("guessInput").style.display = "none";
-      }
-    }
-
-    function submitGuess() {
-      const guess = document.getElementById("guessInput").value.toLowerCase();
-      if (guess === words[currentIndex]) {
-        score++;
-        document.getElementById("status").innerText = "Correct!";
-      } else {
-        document.getElementById("status").innerText = "Wrong! Try again.";
+    function renderQuestion() {
+      if (currentQuestionIndex >= questions.length) {
+        showFinalResults();
         return;
       }
-      currentIndex++;
-      document.getElementById("score").innerText = score;
-      document.getElementById("progress").innerText = currentIndex;
-      showWord();
+
+      document.getElementById("questionDisplay").textContent = questions[currentQuestionIndex];
+      document.getElementById("progress").textContent = `Question ${currentQuestionIndex + 1} of ${questions.length}`;
+      document.getElementById("player1Answer").value = "";
+      document.getElementById("player2Answer").value = "";
+      document.getElementById("results").textContent = "";
+      renderScoreboard();
     }
+
+    function renderScoreboard() {
+      let html = "<h4>Scores:</h4><ul>";
+      for (const [name, score] of Object.entries(players)) {
+        html += `<li>${name}: ${score}</li>`;
+      }
+      html += "</ul>";
+      document.getElementById("scoreboard").innerHTML = html;
+    }
+
+    function showFinalResults() {
+      document.getElementById("questionDisplay").textContent = "Quiz Over!";
+      document.getElementById("progress").textContent = "All questions completed.";
+      document.getElementById("submitBtn").disabled = true;
+      document.getElementById("player1Answer").disabled = true;
+      document.getElementById("player2Answer").disabled = true;
+      document.getElementById("restartBtn").classList.remove("hidden");
+
+      let resultText = `<h3>Final Results</h3>`;
+      for (const [name, score] of Object.entries(players)) {
+        resultText += `<p><strong>${name}:</strong> ${score} point(s)</p>`;
+      }
+
+      const winner = players["Sunshine"] === players["Bigman"] ?
+        "It's a tie! 💞" :
+        (players["Sunshine"] > players["Bigman"] ? "Sunshine wins! 🌞" : "Bigman wins! 💪");
+
+      resultText += `<p><strong>${winner}</strong></p>`;
+      document.getElementById("finalResults").innerHTML = resultText;
+      document.getElementById("finalResults").classList.remove("hidden");
+    }
+
+    function resetGame() {
+      currentQuestionIndex = 0;
+      players = {"Sunshine": 0, "Bigman": 0};
+      answers = {};
+      document.getElementById("submitBtn").disabled = false;
+      document.getElementById("player1Answer").disabled = false;
+      document.getElementById("player2Answer").disabled = false;
+      document.getElementById("finalResults").classList.add("hidden");
+      document.getElementById("restartBtn").classList.add("hidden");
+      renderQuestion();
+    }
+
+    function submitSimulatedAnswers() {
+      const a1 = document.getElementById("player1Answer").value.trim();
+      const a2 = document.getElementById("player2Answer").value.trim();
+      if (!a1 || !a2) {
+        alert("Both players must answer.");
+        return;
+      }
+
+      answers[currentQuestionIndex] = {
+        "Sunshine": a1,
+        "Bigman": a2
+      };
+
+      let resultText = "";
+      if (a1.toLowerCase() === a2.toLowerCase()) {
+        players["Sunshine"]++;
+        players["Bigman"]++;
+        resultText = "Both matched! +1 point each.";
+      } else {
+        resultText = "Answers did not match. No points awarded.";
+      }
+
+      document.getElementById("results").textContent = resultText;
+      currentQuestionIndex++;
+      renderQuestion();
+    }
+
+    document.getElementById("submitBtn").addEventListener("click", submitSimulatedAnswers);
+    document.getElementById("restartBtn").addEventListener("click", resetGame);
+
+    renderQuestion();
   </script>
 </body>
 </html>
