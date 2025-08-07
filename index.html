@@ -1,73 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Secret Prompt Game - BigMan ❤️ Sunshine</title>
+  <meta charset="UTF-8">
+  <title>Secret Prompt Game 💘</title>
   <style>
     body {
-      background-color: #fff0f5;
-      font-family: 'Comic Sans MS', cursive;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-      color: #d63384;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #ff9a9e, #fad0c4);
+      color: #333;
       text-align: center;
+      padding: 2rem;
+      overflow: hidden;
     }
+
     h1 {
       font-size: 2.5rem;
+      color: #c71585;
     }
-    #heart {
-      font-size: 3rem;
-      animation: heartbeat 1s infinite;
+
+    #game {
+      margin-top: 2rem;
     }
-    @keyframes heartbeat {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.3); }
-      100% { transform: scale(1); }
-    }
-    input, button {
-      padding: 10px;
-      margin: 10px;
+
+    button {
+      padding: 10px 20px;
+      margin: 1rem;
       font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background-color: #ff69b4;
+      color: white;
     }
-    .romantic {
-      font-size: 1.5rem;
+
+    #promptDisplay {
+      font-weight: bold;
+      margin-top: 2rem;
+      font-size: 1.2rem;
+    }
+
+    .heart {
+      position: absolute;
+      font-size: 24px;
+      color: #ff4d6d;
+      animation: float 5s ease-in infinite;
+      user-select: none;
+    }
+
+    @keyframes float {
+      0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(-800px) scale(1.5);
+        opacity: 0;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>BigMan ❤️ Sunshine's Secret Prompt Game</h1>
-  <div id="heart">💖💞💘</div>
-  <div>
-    <p class="romantic">Guess each other's secret prompts! 🌹✨</p>
-    <input type="text" id="guess" placeholder="Enter your guess...">
-    <button onclick="submitGuess()">Submit</button>
-    <p id="result"></p>
+  <h1>💑 BigMan & Sunshine's Secret Prompt Game 💌</h1>
+  <div id="game">
+    <p id="instructions">Step 1: One person should click the button below to get the secret prompt. Don't let the other see it! 👀</p>
+    <button id="getPromptBtn">Get Secret Prompt 🔐</button>
+    <p id="promptDisplay"></p>
   </div>
+
   <script>
-    // Replace with your secret prompts
-    const myName = "BigMan";
-    const partnerName = "Sunshine";
-    const secretPrompts = {
-      BigMan: "Sunshine is my favorite smile",
-      Sunshine: "BigMan gives the best hugs"
-    };
+    const prompts = [
+      "Describe your ideal date 💫",
+      "What's a romantic song that reminds you of me? 🎶",
+      "If we could teleport anywhere for a date, where would it be? 🌍",
+      "What’s a secret fantasy you've never shared? 💭",
+      "Describe our first kiss in a movie scene 🎬",
+      "Give me a cute nickname I don't know yet 🥺",
+      "What food would you feed me blindfolded? 🍓",
+      "Whisper a dream you have for us 😘"
+    ];
 
-    function submitGuess() {
-      const input = document.getElementById('guess').value.trim();
-      const correct = secretPrompts[myName];
-      const result = document.getElementById('result');
+    const promptBtn = document.getElementById("getPromptBtn");
+    const promptDisplay = document.getElementById("promptDisplay");
 
-      if (input.toLowerCase() === correct.toLowerCase()) {
-        result.textContent = `🎉 Correct, ${myName}! You're so in sync 💕`;
+    const isAnswerer = confirm("Step 2: Are you the answerer?\nClick OK if YES, Cancel if you're the guesser.");
+
+    promptBtn.addEventListener("click", () => {
+      if (isAnswerer) {
+        const prompt = prompts[Math.floor(Math.random() * prompts.length)];
+        promptDisplay.innerHTML = `💌 Your secret prompt is:<br><em>${prompt}</em>`;
       } else {
-        result.textContent = `❌ Oops! Try again, ${myName} 💌`;
+        promptDisplay.innerHTML = `Now ask BigMan or Sunshine the question and try to guess their answer! 💕`;
       }
+    });
+
+    function createHeart() {
+      const heart = document.createElement("div");
+      heart.className = "heart";
+      heart.textContent = "💖";
+      heart.style.left = Math.random() * window.innerWidth + "px";
+      heart.style.top = "100%";
+      document.body.appendChild(heart);
+
+      setTimeout(() => heart.remove(), 5000);
     }
+
+    setInterval(createHeart, 600);
   </script>
 </body>
 </html>
