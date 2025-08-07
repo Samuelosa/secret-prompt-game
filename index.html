@@ -3,37 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Secret Prompt Game</title>
+  <title>Word Scramble Race</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 text-gray-900">
   <div class="min-h-screen flex items-center justify-center">
-    <div id="session-container" class="text-center space-y-4">
-      <h1 class="text-2xl font-bold">Secret Prompt Game</h1>
-      <button onclick="createGame()" class="bg-blue-600 text-white px-4 py-2 rounded">Create Game</button>
-      <div>
-        <p class="font-semibold">Join an existing game:</p>
-        <div id="availableGames" class="space-y-2"></div>
+    <div id="menu" class="text-center space-y-4">
+      <h1 class="text-2xl font-bold">Word Scramble Race</h1>
+      <div class="space-y-2">
+        <button onclick="createGame()" class="bg-blue-600 text-white px-4 py-2 rounded">Create Game</button>
+        <input id="joinGameId" class="border rounded px-4 py-2" placeholder="Enter Game ID to Join" />
+        <div class="space-x-2">
+          <button onclick="joinGame('sunshine')" class="bg-yellow-500 text-white px-4 py-2 rounded">Join as Sunshine</button>
+          <button onclick="joinGame('bigman')" class="bg-green-600 text-white px-4 py-2 rounded">Join as BigMan</button>
+        </div>
       </div>
-    </div>
-
-    <div id="role-selection" class="hidden text-center space-y-4">
-      <h2 class="text-xl font-bold">Choose your role</h2>
       <p id="gameIdDisplay" class="text-gray-600"></p>
-      <div class="space-x-4">
-        <button onclick="selectRole('sunshine')" class="bg-pink-500 text-white px-4 py-2 rounded">Sunshine</button>
-        <button onclick="selectRole('bigman')" class="bg-green-500 text-white px-4 py-2 rounded">BigMan</button>
-      </div>
     </div>
 
     <div id="game-container" class="hidden w-full max-w-md mx-auto p-4 bg-white rounded shadow">
       <p id="progress" class="text-sm text-gray-500 mb-2"></p>
-      <div id="questionBox" class="text-lg font-semibold mb-4"></div>
-      <input id="inputBox" class="border rounded w-full px-4 py-2 mb-4" placeholder="Type here..." />
-      <button onclick="submitInput()" class="bg-purple-600 text-white w-full py-2 rounded">Submit</button>
-      <button onclick="restartGame()" class="mt-2 bg-red-500 text-white w-full py-2 rounded">Restart Game</button>
+      <div id="scrambledWord" class="text-lg font-semibold mb-4"></div>
+      <input id="guessInput" class="border rounded w-full px-4 py-2 mb-4" placeholder="Your guess..." />
+      <button onclick="submitGuess()" class="bg-purple-600 text-white w-full py-2 rounded">Submit</button>
     </div>
   </div>
 
@@ -46,122 +40,78 @@
       messagingSenderId: "000000000000",
       appId: "1:000000000000:web:example"
     };
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let gameId = null;
+    let role = null;
+    let currentIndex = 0;
+    const totalWords = 10;
+    const wordList = ["banana", "elephant", "computer", "giraffe", "mountain", "library", "rainbow", "sunshine", "diamond", "notebook"];
+
+    function scramble(word) {
+      return word.split('').sort(() => Math.random() - 0.5).join('');
     }
 
-    const db = firebase.database();
-    let role = null;
-    let gameId = null;
-    let currentRound = 1;
-    const totalRounds = 5;
-
     function createGame() {
-      const newGameId = Math.random().toString(36).substring(2, 8);
-      db.ref(`games/${newGameId}`).set({ created: Date.now() });
-      gameId = newGameId;
-      document.getElementById("session-container").classList.add("hidden");
-      document.getElementById("role-selection").classList.remove("hidden");
+      gameId = Math.floor(1000 + Math.random() * 9000).toString();
+      db.ref(`games/${gameId}`).set({ started: false });
       document.getElementById("gameIdDisplay").textContent = `Game ID: ${gameId}`;
     }
 
-    function fetchAvailableGames() {
-      const container = document.getElementById("availableGames");
-      db.ref("games").on("value", snapshot => {
-        container.innerHTML = "";
-        snapshot.forEach(child => {
-          const gid = child.key;
-          const button = document.createElement("button");
-          button.textContent = `Join Game ${gid}`;
-          button.className = "bg-gray-300 px-4 py-1 rounded hover:bg-gray-400";
-          button.onclick = () => {
-            gameId = gid;
-            document.getElementById("session-container").classList.add("hidden");
-            document.getElementById("role-selection").classList.remove("hidden");
-            document.getElementById("gameIdDisplay").textContent = `Game ID: ${gameId}`;
-          };
-          container.appendChild(button);
-        });
-      });
-    }
-
-    function selectRole(selectedRole) {
+    function joinGame(selectedRole) {
+      gameId = document.getElementById("joinGameId").value.trim() || gameId;
+      if (!gameId) {
+        alert("Please enter or generate a Game ID.");
+        return;
+      }
       role = selectedRole;
-      const playerRef = db.ref(`games/${gameId}/${role}`);
-      playerRef.set({ online: true });
-      playerRef.onDisconnect().remove();
-
-      checkBothPlayersPresent();
+      db.ref(`games/${gameId}/${role}`).set({ online: true });
+      db.ref(`games/${gameId}/${role}`).onDisconnect().remove();
+      listenForStart();
     }
 
-    function checkBothPlayersPresent() {
-      const gameRef = db.ref(`games/${gameId}`);
-      gameRef.on("value", snapshot => {
-        const data = snapshot.val();
+    function listenForStart() {
+      const ref = db.ref(`games/${gameId}`);
+      ref.on("value", snap => {
+        const data = snap.val();
         if (data?.sunshine?.online && data?.bigman?.online) {
-          document.getElementById("role-selection").classList.add("hidden");
-          document.getElementById("game-container").classList.remove("hidden");
           startGame();
         }
       });
     }
 
     function startGame() {
-      const questionBox = document.getElementById("questionBox");
-      if (role === "sunshine") {
-        questionBox.textContent = `Round ${currentRound}: Enter a secret answer.`;
-      } else {
-        questionBox.textContent = `Round ${currentRound}: Waiting for Sunshine's answer...`;
-        db.ref(`games/${gameId}/round${currentRound}/answer`).on("value", snap => {
-          if (snap.exists()) {
-            questionBox.textContent = `Round ${currentRound}: Make your guess!`;
-          }
-        });
-      }
-      updateProgress();
+      document.getElementById("menu").classList.add("hidden");
+      document.getElementById("game-container").classList.remove("hidden");
+      db.ref(`games/${gameId}`).update({ started: true, words: wordList });
+      showNextWord();
     }
 
-    function submitInput() {
-      const input = document.getElementById("inputBox").value.trim();
-      if (!input) return;
-      const roundRef = db.ref(`games/${gameId}/round${currentRound}`);
+    function showNextWord() {
+      if (currentIndex >= totalWords) {
+        alert("All words solved! Game Over.");
+        db.ref(`games/${gameId}`).remove();
+        location.reload();
+        return;
+      }
+      const word = wordList[currentIndex];
+      document.getElementById("scrambledWord").textContent = `Word ${currentIndex + 1}: ${scramble(word)}`;
+      document.getElementById("progress").textContent = `Progress: ${currentIndex + 1} of ${totalWords}`;
+    }
 
-      if (role === "sunshine") {
-        roundRef.update({ answer: input });
-        document.getElementById("questionBox").textContent = `Waiting for BigMan's guess...`;
+    function submitGuess() {
+      const guess = document.getElementById("guessInput").value.trim().toLowerCase();
+      const correct = wordList[currentIndex];
+      if (guess === correct) {
+        db.ref(`games/${gameId}/${role}/progress`).set(currentIndex + 1);
+        currentIndex++;
+        document.getElementById("guessInput").value = "";
+        showNextWord();
       } else {
-        roundRef.update({ guess: input });
-        roundRef.once("value").then(snap => {
-          const answer = snap.val().answer;
-          const result = input.toLowerCase() === answer.toLowerCase() ? "Correct!" : `Wrong. Answer was: ${answer}`;
-          alert(result);
-          currentRound++;
-          if (currentRound > totalRounds) {
-            endGame();
-          } else {
-            document.getElementById("inputBox").value = "";
-            startGame();
-          }
-        });
+        alert("Incorrect. Try again.");
       }
     }
-
-    function updateProgress() {
-      document.getElementById("progress").textContent = `Progress: Round ${currentRound} of ${totalRounds}`;
-    }
-
-    function endGame() {
-      alert("Game over! Thanks for playing.");
-      db.ref(`games/${gameId}`).remove();
-      location.reload();
-    }
-
-    function restartGame() {
-      db.ref(`games/${gameId}`).remove();
-      location.reload();
-    }
-
-    fetchAvailableGames();
   </script>
 </body>
 </html>
