@@ -3,24 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Word Scramble Race</title>
+  <title>Word Scramble Duel</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 text-gray-900">
   <div class="min-h-screen flex items-center justify-center">
-    <div id="menu" class="text-center space-y-4">
-      <h1 class="text-2xl font-bold">Word Scramble Race</h1>
-      <div class="space-y-2">
-        <button onclick="createGame()" class="bg-blue-600 text-white px-4 py-2 rounded">Create Game</button>
-        <input id="joinGameId" class="border rounded px-4 py-2" placeholder="Enter Game ID to Join" />
-        <div class="space-x-2">
-          <button onclick="joinGame('sunshine')" class="bg-yellow-500 text-white px-4 py-2 rounded">Join as Sunshine</button>
-          <button onclick="joinGame('bigman')" class="bg-green-600 text-white px-4 py-2 rounded">Join as BigMan</button>
-        </div>
+    <div id="setup-container" class="text-center space-y-4">
+      <h1 class="text-2xl font-bold">Word Scramble Duel</h1>
+      <div id="create-join-buttons" class="space-x-4">
+        <button onclick="showCreateGame()" class="bg-blue-500 text-white px-4 py-2 rounded">Create Game</button>
+        <button onclick="showJoinGame()" class="bg-green-500 text-white px-4 py-2 rounded">Join Game</button>
       </div>
-      <p id="gameIdDisplay" class="text-gray-600"></p>
+
+      <div id="create-game" class="hidden space-y-2">
+        <p class="font-semibold">Your Game ID: <span id="generatedGameId"></span></p>
+        <select id="creatorRole" class="border rounded px-4 py-2">
+          <option value="sunshine">Sunshine</option>
+          <option value="bigman">BigMan</option>
+        </select>
+        <button onclick="createGame()" class="bg-purple-600 text-white px-4 py-2 rounded">Start Game</button>
+      </div>
+
+      <div id="join-game" class="hidden space-y-2">
+        <input id="joinGameId" class="border rounded px-4 py-2" placeholder="Enter Game ID" />
+        <select id="joinerRole" class="border rounded px-4 py-2">
+          <option value="sunshine">Sunshine</option>
+          <option value="bigman">BigMan</option>
+        </select>
+        <button onclick="joinGame()" class="bg-purple-600 text-white px-4 py-2 rounded">Join Game</button>
+      </div>
     </div>
 
     <div id="game-container" class="hidden w-full max-w-md mx-auto p-4 bg-white rounded shadow">
@@ -43,74 +56,95 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    const words = ["banana", "elephant", "computer", "guitar", "window", "mountain", "library", "diamond", "pencil", "sunshine"];
+    let scrambled = words.map(w => shuffleWord(w));
     let gameId = null;
     let role = null;
-    let currentIndex = 0;
-    const totalWords = 10;
-    const wordList = ["banana", "elephant", "computer", "giraffe", "mountain", "library", "rainbow", "sunshine", "diamond", "notebook"];
+    let currentWordIndex = 0;
 
-    function scramble(word) {
-      return word.split('').sort(() => Math.random() - 0.5).join('');
+    function shuffleWord(word) {
+      return word.split('').sort(() => 0.5 - Math.random()).join('');
+    }
+
+    function showCreateGame() {
+      const id = Math.floor(1000 + Math.random() * 9000).toString();
+      document.getElementById("generatedGameId").textContent = id;
+      document.getElementById("create-game").classList.remove("hidden");
+      document.getElementById("join-game").classList.add("hidden");
+      gameId = id;
+    }
+
+    function showJoinGame() {
+      document.getElementById("join-game").classList.remove("hidden");
+      document.getElementById("create-game").classList.add("hidden");
     }
 
     function createGame() {
-      gameId = Math.floor(1000 + Math.random() * 9000).toString();
-      db.ref(`games/${gameId}`).set({ started: false });
-      document.getElementById("gameIdDisplay").textContent = `Game ID: ${gameId}`;
-    }
-
-    function joinGame(selectedRole) {
-      gameId = document.getElementById("joinGameId").value.trim() || gameId;
-      if (!gameId) {
-        alert("Please enter or generate a Game ID.");
-        return;
-      }
-      role = selectedRole;
-      db.ref(`games/${gameId}/${role}`).set({ online: true });
-      db.ref(`games/${gameId}/${role}`).onDisconnect().remove();
-      listenForStart();
-    }
-
-    function listenForStart() {
+      role = document.getElementById("creatorRole").value;
       const ref = db.ref(`games/${gameId}`);
-      ref.on("value", snap => {
-        const data = snap.val();
+      ref.set({
+        scrambledWords: scrambled,
+        scores: { sunshine: 0, bigman: 0 },
+        current: 0
+      });
+      ref.child(role).set({ online: true });
+      ref.child(role).onDisconnect().remove();
+      startGameListener();
+    }
+
+    function joinGame() {
+      gameId = document.getElementById("joinGameId").value.trim();
+      role = document.getElementById("joinerRole").value;
+      if (!gameId) return alert("Please enter a game ID.");
+      const ref = db.ref(`games/${gameId}/${role}`);
+      ref.set({ online: true });
+      ref.onDisconnect().remove();
+      startGameListener();
+    }
+
+    function startGameListener() {
+      db.ref(`games/${gameId}`).on("value", snapshot => {
+        const data = snapshot.val();
         if (data?.sunshine?.online && data?.bigman?.online) {
-          startGame();
+          document.getElementById("setup-container").classList.add("hidden");
+          document.getElementById("game-container").classList.remove("hidden");
+          updateGameUI();
         }
       });
     }
 
-    function startGame() {
-      document.getElementById("menu").classList.add("hidden");
-      document.getElementById("game-container").classList.remove("hidden");
-      db.ref(`games/${gameId}`).update({ started: true, words: wordList });
-      showNextWord();
-    }
-
-    function showNextWord() {
-      if (currentIndex >= totalWords) {
-        alert("All words solved! Game Over.");
-        db.ref(`games/${gameId}`).remove();
-        location.reload();
-        return;
-      }
-      const word = wordList[currentIndex];
-      document.getElementById("scrambledWord").textContent = `Word ${currentIndex + 1}: ${scramble(word)}`;
-      document.getElementById("progress").textContent = `Progress: ${currentIndex + 1} of ${totalWords}`;
+    function updateGameUI() {
+      db.ref(`games/${gameId}`).once("value").then(snap => {
+        const data = snap.val();
+        currentWordIndex = data.current;
+        document.getElementById("progress").textContent = `Word ${currentWordIndex + 1} of 10`;
+        document.getElementById("scrambledWord").textContent = data.scrambledWords[currentWordIndex];
+      });
     }
 
     function submitGuess() {
       const guess = document.getElementById("guessInput").value.trim().toLowerCase();
-      const correct = wordList[currentIndex];
-      if (guess === correct) {
-        db.ref(`games/${gameId}/${role}/progress`).set(currentIndex + 1);
-        currentIndex++;
-        document.getElementById("guessInput").value = "";
-        showNextWord();
-      } else {
-        alert("Incorrect. Try again.");
-      }
+      if (!guess) return;
+      db.ref(`games/${gameId}`).once("value").then(snap => {
+        const data = snap.val();
+        const correct = words[currentWordIndex];
+        if (guess === correct) {
+          const newScore = data.scores[role] + 1;
+          db.ref(`games/${gameId}/scores/${role}`).set(newScore);
+          db.ref(`games/${gameId}/current`).set(currentWordIndex + 1);
+          document.getElementById("guessInput").value = "";
+
+          if (currentWordIndex + 1 >= words.length) {
+            alert("Game Over! Thanks for playing.");
+            db.ref(`games/${gameId}`).remove();
+            location.reload();
+          } else {
+            updateGameUI();
+          }
+        } else {
+          alert("Incorrect! Try again.");
+        }
+      });
     }
   </script>
 </body>
