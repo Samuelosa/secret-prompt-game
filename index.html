@@ -1,150 +1,127 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Word Scramble Duel</title>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Word Scramble Game</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f0f4f8;
+      padding: 20px;
+      text-align: center;
+    }
+    #game, #lobby {
+      display: none;
+    }
+    input, button {
+      padding: 10px;
+      margin: 10px;
+      font-size: 16px;
+    }
+    .scrambled-word {
+      font-size: 24px;
+      font-weight: bold;
+      margin: 20px;
+    }
+    .hidden {
+      display: none;
+    }
+    .solved {
+      color: green;
+    }
+  </style>
 </head>
-<body class="bg-gray-100 text-gray-900">
-  <div class="min-h-screen flex items-center justify-center">
-    <div id="setup-container" class="text-center space-y-4">
-      <h1 class="text-2xl font-bold">Word Scramble Duel</h1>
-      <div id="create-join-buttons" class="space-x-4">
-        <button onclick="showCreateGame()" class="bg-blue-500 text-white px-4 py-2 rounded">Create Game</button>
-        <button onclick="showJoinGame()" class="bg-green-500 text-white px-4 py-2 rounded">Join Game</button>
-      </div>
+<body>
+  <h1>Word Scramble Game</h1>
+  <div id="startScreen">
+    <button onclick="createGame()">Create Game</button>
+    <button onclick="showJoin()">Join Game</button>
+  </div>
 
-      <div id="create-game" class="hidden space-y-2">
-        <p class="font-semibold">Your Game ID: <span id="generatedGameId"></span></p>
-        <select id="creatorRole" class="border rounded px-4 py-2">
-          <option value="sunshine">Sunshine</option>
-          <option value="bigman">BigMan</option>
-        </select>
-        <button onclick="createGame()" class="bg-purple-600 text-white px-4 py-2 rounded">Start Game</button>
-      </div>
+  <div id="joinScreen" class="hidden">
+    <input type="text" id="joinGameId" placeholder="Enter 4-digit Game ID"/>
+    <button onclick="joinGame()">Join</button>
+  </div>
 
-      <div id="join-game" class="hidden space-y-2">
-        <input id="joinGameId" class="border rounded px-4 py-2" placeholder="Enter Game ID" />
-        <select id="joinerRole" class="border rounded px-4 py-2">
-          <option value="sunshine">Sunshine</option>
-          <option value="bigman">BigMan</option>
-        </select>
-        <button onclick="joinGame()" class="bg-purple-600 text-white px-4 py-2 rounded">Join Game</button>
-      </div>
-    </div>
+  <div id="lobby">
+    <h2>Lobby - Game ID: <span id="gameIdDisplay"></span></h2>
+    <p>Select your name:</p>
+    <button onclick="selectPlayer('BigMan')">BigMan</button>
+    <button onclick="selectPlayer('Sunshine')">Sunshine</button>
+  </div>
 
-    <div id="game-container" class="hidden w-full max-w-md mx-auto p-4 bg-white rounded shadow">
-      <p id="progress" class="text-sm text-gray-500 mb-2"></p>
-      <div id="scrambledWord" class="text-lg font-semibold mb-4"></div>
-      <input id="guessInput" class="border rounded w-full px-4 py-2 mb-4" placeholder="Your guess..." />
-      <button onclick="submitGuess()" class="bg-purple-600 text-white w-full py-2 rounded">Submit</button>
-    </div>
+  <div id="game">
+    <h2>Player: <span id="playerName"></span></h2>
+    <h3 class="scrambled-word" id="scrambledWord"></h3>
+    <input type="text" id="guessInput" placeholder="Your guess"/>
+    <button onclick="submitGuess()">Submit</button>
+    <p id="status"></p>
+    <p>Score: <span id="score">0</span></p>
+    <p>Words Solved: <span id="progress">0</span>/10</p>
   </div>
 
   <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDemoKey",
-      authDomain: "your-app.firebaseapp.com",
-      projectId: "your-app",
-      storageBucket: "your-app.appspot.com",
-      messagingSenderId: "000000000000",
-      appId: "1:000000000000:web:example"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    const words = ["banana", "elephant", "computer", "guitar", "window", "mountain", "library", "diamond", "pencil", "sunshine"];
-    let scrambled = words.map(w => shuffleWord(w));
-    let gameId = null;
-    let role = null;
-    let currentWordIndex = 0;
-
-    function shuffleWord(word) {
-      return word.split('').sort(() => 0.5 - Math.random()).join('');
-    }
-
-    function showCreateGame() {
-      const id = Math.floor(1000 + Math.random() * 9000).toString();
-      document.getElementById("generatedGameId").textContent = id;
-      document.getElementById("create-game").classList.remove("hidden");
-      document.getElementById("join-game").classList.add("hidden");
-      gameId = id;
-    }
-
-    function showJoinGame() {
-      document.getElementById("join-game").classList.remove("hidden");
-      document.getElementById("create-game").classList.add("hidden");
-    }
+    let words = ["banana", "apple", "orange", "grapes", "mango", "papaya", "peach", "cherry", "melon", "kiwi"];
+    let scrambledWords = [...words].map(w => w.split('').sort(() => Math.random() - 0.5).join(''));
+    let currentIndex = 0;
+    let score = 0;
+    let gameId = '';
+    let playerName = '';
 
     function createGame() {
-      role = document.getElementById("creatorRole").value;
-      const ref = db.ref(`games/${gameId}`);
-      ref.set({
-        scrambledWords: scrambled,
-        scores: { sunshine: 0, bigman: 0 },
-        current: 0
-      });
-      ref.child(role).set({ online: true });
-      ref.child(role).onDisconnect().remove();
-      startGameListener();
+      gameId = Math.floor(1000 + Math.random() * 9000).toString();
+      document.getElementById("startScreen").style.display = "none";
+      document.getElementById("lobby").style.display = "block";
+      document.getElementById("gameIdDisplay").innerText = gameId;
+    }
+
+    function showJoin() {
+      document.getElementById("startScreen").style.display = "none";
+      document.getElementById("joinScreen").classList.remove("hidden");
     }
 
     function joinGame() {
-      gameId = document.getElementById("joinGameId").value.trim();
-      role = document.getElementById("joinerRole").value;
-      if (!gameId) return alert("Please enter a game ID.");
-      const ref = db.ref(`games/${gameId}/${role}`);
-      ref.set({ online: true });
-      ref.onDisconnect().remove();
-      startGameListener();
+      gameId = document.getElementById("joinGameId").value;
+      if (gameId.length === 4) {
+        document.getElementById("joinScreen").style.display = "none";
+        document.getElementById("lobby").style.display = "block";
+        document.getElementById("gameIdDisplay").innerText = gameId;
+      }
     }
 
-    function startGameListener() {
-      db.ref(`games/${gameId}`).on("value", snapshot => {
-        const data = snapshot.val();
-        if (data?.sunshine?.online && data?.bigman?.online) {
-          document.getElementById("setup-container").classList.add("hidden");
-          document.getElementById("game-container").classList.remove("hidden");
-          updateGameUI();
-        }
-      });
+    function selectPlayer(name) {
+      playerName = name;
+      document.getElementById("lobby").style.display = "none";
+      document.getElementById("game").style.display = "block";
+      document.getElementById("playerName").innerText = playerName;
+      showWord();
     }
 
-    function updateGameUI() {
-      db.ref(`games/${gameId}`).once("value").then(snap => {
-        const data = snap.val();
-        currentWordIndex = data.current;
-        document.getElementById("progress").textContent = `Word ${currentWordIndex + 1} of 10`;
-        document.getElementById("scrambledWord").textContent = data.scrambledWords[currentWordIndex];
-      });
+    function showWord() {
+      if (currentIndex < scrambledWords.length) {
+        document.getElementById("scrambledWord").innerText = scrambledWords[currentIndex];
+        document.getElementById("guessInput").value = '';
+      } else {
+        document.getElementById("scrambledWord").innerText = "Game Over!";
+        document.getElementById("guessInput").style.display = "none";
+      }
     }
 
     function submitGuess() {
-      const guess = document.getElementById("guessInput").value.trim().toLowerCase();
-      if (!guess) return;
-      db.ref(`games/${gameId}`).once("value").then(snap => {
-        const data = snap.val();
-        const correct = words[currentWordIndex];
-        if (guess === correct) {
-          const newScore = data.scores[role] + 1;
-          db.ref(`games/${gameId}/scores/${role}`).set(newScore);
-          db.ref(`games/${gameId}/current`).set(currentWordIndex + 1);
-          document.getElementById("guessInput").value = "";
-
-          if (currentWordIndex + 1 >= words.length) {
-            alert("Game Over! Thanks for playing.");
-            db.ref(`games/${gameId}`).remove();
-            location.reload();
-          } else {
-            updateGameUI();
-          }
-        } else {
-          alert("Incorrect! Try again.");
-        }
-      });
+      const guess = document.getElementById("guessInput").value.toLowerCase();
+      if (guess === words[currentIndex]) {
+        score++;
+        document.getElementById("status").innerText = "Correct!";
+      } else {
+        document.getElementById("status").innerText = "Wrong! Try again.";
+        return;
+      }
+      currentIndex++;
+      document.getElementById("score").innerText = score;
+      document.getElementById("progress").innerText = currentIndex;
+      showWord();
     }
   </script>
 </body>
