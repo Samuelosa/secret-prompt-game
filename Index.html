@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>💑 Secret Prompt Game</title>
+  <style>
+    body {
+      background-color: #ffe6e6;
+      font-family: Georgia, serif;
+      color: #333;
+      text-align: center;
+      padding: 20px;
+    }
+    input, textarea, button {
+      margin: 10px;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      width: 80%;
+      max-width: 400px;
+    }
+    button {
+      background-color: #ff9999;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #ff6666;
+    }
+    #heart {
+      font-size: 50px;
+      color: red;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    #heart.show {
+      opacity: 1;
+      animation: floatUp 1s ease forwards;
+    }
+    @keyframes floatUp {
+      0% { transform: translateY(0); opacity: 1; }
+      100% { transform: translateY(-50px); opacity: 0; }
+    }
+  </style>
+  <script>
+    const prompts = [
+      "What's your favorite memory with me? 😍",
+      "What do you love most about us? 💖",
+      "If you could take me anywhere, where would we go? ✈️",
+      "What song reminds you of our love? 🎶",
+      "Describe me in 3 words 💬",
+      "What's something you want us to do together? 💑"
+    ];
+
+    let gameState = { answer: "", prompt: "", guess: "", score: 0 };
+    let role = "";
+
+    window.onload = () => {
+      const appDiv = document.getElementById("app");
+      const heart = document.getElementById("heart");
+
+      function showHeart() {
+        heart.classList.add("show");
+        setTimeout(() => heart.classList.remove("show"), 1000);
+      }
+
+      function renderStartScreen() {
+        appDiv.innerHTML = `
+          <h2>Who's playing?</h2>
+          <button onclick="chooseRole('habibi')">Habibi 🌸</button>
+          <button onclick="chooseRole('bigman')">BigMan 😎</button>
+        `;
+      }
+
+      window.chooseRole = (selectedRole) => {
+        role = selectedRole;
+        if (role === "habibi") {
+          renderPromptPage();
+        } else {
+          checkForAnswer();
+        }
+      };
+
+      function checkForAnswer() {
+        const interval = setInterval(() => {
+          const stored = JSON.parse(localStorage.getItem("secretGameData"));
+          if (stored && stored.answer) {
+            clearInterval(interval);
+            gameState = stored;
+            renderGuessPage();
+          } else {
+            appDiv.innerHTML = `<p>Waiting for Habibi to send an answer... 💌</p>`;
+          }
+        }, 1000);
+      }
+
+      function renderPromptPage() {
+        gameState.prompt = prompts[Math.floor(Math.random() * prompts.length)];
+        appDiv.innerHTML = `
+          <p><strong>Your prompt 💌:</strong><br>${gameState.prompt}</p>
+          <textarea id="answer" placeholder="Type your heartfelt answer here 🦕..."></textarea><br>
+          <button onclick="submitAnswer()">Send Answer 💘</button>
+        `;
+      }
+
+      function renderGuessPage() {
+        appDiv.innerHTML = `
+          <p><strong>Answer received 💭:</strong><br>${gameState.answer}</p>
+          <input id="guess" placeholder="What do you think the prompt was? 💌"><br>
+          <button onclick="submitGuess()">Reveal 💘</button>
+        `;
+      }
+
+      window.submitAnswer = () => {
+        const answer = document.getElementById("answer").value.trim();
+        if (!answer) {
+          alert("Please enter an answer before submitting! 😔");
+          return;
+        }
+        gameState.answer = answer;
+        localStorage.setItem("secretGameData", JSON.stringify(gameState));
+        alert("Answer submitted! Ask your love to check now 🦕");
+        appDiv.innerHTML = `<p>Waiting for BigMan to guess... 🌞</p>`;
+      };
+
+      window.submitGuess = () => {
+        const guess = document.getElementById("guess").value;
+        const stored = JSON.parse(localStorage.getItem("secretGameData"));
+        const correct = confirm(`Real Prompt 💘: "${stored.prompt}"
+Your Guess 💭: "${guess}"
+
+Was the guess close enough to count as correct? 💑`);
+        if (correct) {
+          stored.score++;
+          showHeart();
+        }
+        localStorage.setItem("secretGameData", JSON.stringify({ ...stored }));
+        appDiv.innerHTML = `<p>Score: ${stored.score} 💞</p><p>Get ready for the next round! 🥰</p>`;
+      };
+
+      renderStartScreen();
+    };
+  </script>
+</head>
+<body>
+  <h1>💘 Secret Prompt Game 💘</h1>
+  <div id="app"></div>
+  <div id="heart">❤️</div>
+</body>
+</html>
