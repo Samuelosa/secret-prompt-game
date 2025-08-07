@@ -10,14 +10,22 @@
 </head>
 <body class="bg-gray-100 text-gray-900">
   <div class="min-h-screen flex items-center justify-center">
-    <div id="lobby-container" class="text-center space-y-4">
+    <div id="session-container" class="text-center space-y-4">
       <h1 class="text-2xl font-bold">Secret Prompt Game</h1>
-      <input id="gameIdInput" class="border rounded px-4 py-2" placeholder="Enter Game ID" />
+      <button onclick="createGame()" class="bg-blue-600 text-white px-4 py-2 rounded">Create Game</button>
+      <div>
+        <p class="font-semibold">Join an existing game:</p>
+        <div id="availableGames" class="space-y-2"></div>
+      </div>
+    </div>
+
+    <div id="role-selection" class="hidden text-center space-y-4">
+      <h2 class="text-xl font-bold">Choose your role</h2>
+      <p id="gameIdDisplay" class="text-gray-600"></p>
       <div class="space-x-4">
-        <button onclick="selectRole('sunshine')" class="bg-blue-500 text-white px-4 py-2 rounded">Sunshine</button>
+        <button onclick="selectRole('sunshine')" class="bg-pink-500 text-white px-4 py-2 rounded">Sunshine</button>
         <button onclick="selectRole('bigman')" class="bg-green-500 text-white px-4 py-2 rounded">BigMan</button>
       </div>
-      <p id="status" class="text-gray-600"></p>
     </div>
 
     <div id="game-container" class="hidden w-full max-w-md mx-auto p-4 bg-white rounded shadow">
@@ -25,37 +33,60 @@
       <div id="questionBox" class="text-lg font-semibold mb-4"></div>
       <input id="inputBox" class="border rounded w-full px-4 py-2 mb-4" placeholder="Type here..." />
       <button onclick="submitInput()" class="bg-purple-600 text-white w-full py-2 rounded">Submit</button>
+      <button onclick="restartGame()" class="mt-2 bg-red-500 text-white w-full py-2 rounded">Restart Game</button>
     </div>
   </div>
 
   <script>
-    // Prevent duplicate firebaseConfig and app initialization
-    if (typeof firebase === "undefined" || firebase.apps.length === 0) {
-      const firebaseConfig = {
-        apiKey: "AIzaSyDemoKey",
-        authDomain: "your-app.firebaseapp.com",
-        projectId: "your-app",
-        storageBucket: "your-app.appspot.com",
-        messagingSenderId: "000000000000",
-        appId: "1:000000000000:web:example"
-      };
+    const firebaseConfig = {
+      apiKey: "AIzaSyDemoKey",
+      authDomain: "your-app.firebaseapp.com",
+      projectId: "your-app",
+      storageBucket: "your-app.appspot.com",
+      messagingSenderId: "000000000000",
+      appId: "1:000000000000:web:example"
+    };
+    if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
 
     const db = firebase.database();
-
     let role = null;
     let gameId = null;
-    window.currentRound = 1; // Prevent redeclaration
+    let currentRound = 1;
     const totalRounds = 5;
+
+    function createGame() {
+      const newGameId = Math.random().toString(36).substring(2, 8);
+      db.ref(`games/${newGameId}`).set({ created: Date.now() });
+      gameId = newGameId;
+      document.getElementById("session-container").classList.add("hidden");
+      document.getElementById("role-selection").classList.remove("hidden");
+      document.getElementById("gameIdDisplay").textContent = `Game ID: ${gameId}`;
+    }
+
+    function fetchAvailableGames() {
+      const container = document.getElementById("availableGames");
+      db.ref("games").on("value", snapshot => {
+        container.innerHTML = "";
+        snapshot.forEach(child => {
+          const gid = child.key;
+          const button = document.createElement("button");
+          button.textContent = `Join Game ${gid}`;
+          button.className = "bg-gray-300 px-4 py-1 rounded hover:bg-gray-400";
+          button.onclick = () => {
+            gameId = gid;
+            document.getElementById("session-container").classList.add("hidden");
+            document.getElementById("role-selection").classList.remove("hidden");
+            document.getElementById("gameIdDisplay").textContent = `Game ID: ${gameId}`;
+          };
+          container.appendChild(button);
+        });
+      });
+    }
 
     function selectRole(selectedRole) {
       role = selectedRole;
-      gameId = document.getElementById("gameIdInput").value.trim();
-      if (!gameId) {
-        alert("Please enter a Game ID.");
-        return;
-      }
       const playerRef = db.ref(`games/${gameId}/${role}`);
       playerRef.set({ online: true });
       playerRef.onDisconnect().remove();
@@ -67,16 +98,10 @@
       const gameRef = db.ref(`games/${gameId}`);
       gameRef.on("value", snapshot => {
         const data = snapshot.val();
-        const status = document.getElementById("status");
         if (data?.sunshine?.online && data?.bigman?.online) {
-          status.textContent = "Both players are online. Starting game...";
-          setTimeout(() => {
-            document.getElementById("lobby-container").classList.add("hidden");
-            document.getElementById("game-container").classList.remove("hidden");
-            startGame();
-          }, 1000);
-        } else {
-          status.textContent = "Waiting for the other player to join...";
+          document.getElementById("role-selection").classList.add("hidden");
+          document.getElementById("game-container").classList.remove("hidden");
+          startGame();
         }
       });
     }
@@ -84,12 +109,12 @@
     function startGame() {
       const questionBox = document.getElementById("questionBox");
       if (role === "sunshine") {
-        questionBox.textContent = `Round ${window.currentRound}: Enter a secret answer.`;
+        questionBox.textContent = `Round ${currentRound}: Enter a secret answer.`;
       } else {
-        questionBox.textContent = `Round ${window.currentRound}: Waiting for Sunshine's answer...`;
-        db.ref(`games/${gameId}/round${window.currentRound}/answer`).on("value", snap => {
+        questionBox.textContent = `Round ${currentRound}: Waiting for Sunshine's answer...`;
+        db.ref(`games/${gameId}/round${currentRound}/answer`).on("value", snap => {
           if (snap.exists()) {
-            questionBox.textContent = `Round ${window.currentRound}: Make your guess!`;
+            questionBox.textContent = `Round ${currentRound}: Make your guess!`;
           }
         });
       }
@@ -99,7 +124,7 @@
     function submitInput() {
       const input = document.getElementById("inputBox").value.trim();
       if (!input) return;
-      const roundRef = db.ref(`games/${gameId}/round${window.currentRound}`);
+      const roundRef = db.ref(`games/${gameId}/round${currentRound}`);
 
       if (role === "sunshine") {
         roundRef.update({ answer: input });
@@ -110,8 +135,8 @@
           const answer = snap.val().answer;
           const result = input.toLowerCase() === answer.toLowerCase() ? "Correct!" : `Wrong. Answer was: ${answer}`;
           alert(result);
-          window.currentRound++;
-          if (window.currentRound > totalRounds) {
+          currentRound++;
+          if (currentRound > totalRounds) {
             endGame();
           } else {
             document.getElementById("inputBox").value = "";
@@ -122,7 +147,7 @@
     }
 
     function updateProgress() {
-      document.getElementById("progress").textContent = `Progress: Round ${window.currentRound} of ${totalRounds}`;
+      document.getElementById("progress").textContent = `Progress: Round ${currentRound} of ${totalRounds}`;
     }
 
     function endGame() {
@@ -130,6 +155,13 @@
       db.ref(`games/${gameId}`).remove();
       location.reload();
     }
+
+    function restartGame() {
+      db.ref(`games/${gameId}`).remove();
+      location.reload();
+    }
+
+    fetchAvailableGames();
   </script>
 </body>
 </html>
